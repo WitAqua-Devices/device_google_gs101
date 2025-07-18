@@ -22,7 +22,7 @@ TARGET_SOC := gs101
 TARGET_SOC_NAME := google
 
 USES_DEVICE_GOOGLE_GS101 := true
-$(call soong_config_set,CitadelProvision,target_soc,gs101)
+$(call soong_config_set,googleDeviceConfig,target_soc,gs101)
 
 TARGET_ARCH := arm64
 TARGET_ARCH_VARIANT := armv8-2a
@@ -207,12 +207,6 @@ BOARD_PERFSETUP_SCRIPT := platform_testing/scripts/perf-setup/r4o6-setup.sh
 BOARD_USES_GENERIC_AUDIO := true
 
 $(call soong_config_set,aoc_audio_func,ext_hidl,true)
-
-ifneq (,$(filter eng, $(TARGET_BUILD_VARIANT)))
-$(call soong_config_set,aoc_audio_func,dump_usecase_data,true)
-$(call soong_config_set,aoc_audio_func,hal_socket_control,true)
-$(call soong_config_set,aoc_audio_func,record_tuning_keys,true)
-endif
 
 ifneq (,$(filter aosp_%,$(TARGET_PRODUCT)))
 $(call soong_config_set,aoc_audio_func,aosp_build,true)
@@ -406,7 +400,5 @@ BOARD_KERNEL_CMDLINE += log_buf_len=1024K
 
 # Protected VM firmware
 BOARD_PVMFWIMAGE_PARTITION_SIZE := 0x00100000
-
--include vendor/google_devices/gs-common/proprietary/BoardConfigVendor.mk
 
 include device/google/gs101/BoardConfigLineage.mk
