@@ -55,10 +55,10 @@ AB_OTA_POSTINSTALL_CONFIG += \
 POSTINSTALL_OPTIONAL_system=true
 
 # Set Vendor SPL to match platform
-VENDOR_SECURITY_PATCH := 2025-06-05
+VENDOR_SECURITY_PATCH := 2025-08-05
 
 # Set boot SPL
-BOOT_SECURITY_PATCH := 2025-06-05
+BOOT_SECURITY_PATCH := 2025-08-05
 
 PRODUCT_SOONG_NAMESPACES += \
 	hardware/google/av \
@@ -66,8 +66,6 @@ PRODUCT_SOONG_NAMESPACES += \
 	hardware/google/pixel \
 	device/google/gs101 \
 	device/google/gs101/powerstats
-
-LOCAL_KERNEL := $(TARGET_KERNEL_DIR)/Image.lz4
 
 # OEM Unlock reporting
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
@@ -263,7 +261,6 @@ PRODUCT_ENFORCE_PRODUCT_PARTITION_INTERFACE := true
 
 # Init files
 PRODUCT_COPY_FILES += \
-	$(LOCAL_KERNEL):kernel \
 	device/google/gs101/conf/init.gs101.usb.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/hw/init.gs101.usb.rc \
 	device/google/gs101/conf/ueventd.gs101.rc:$(TARGET_COPY_OUT_VENDOR)/etc/ueventd.rc
 
