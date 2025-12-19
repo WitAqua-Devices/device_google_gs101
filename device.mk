@@ -1,52 +1,52 @@
 #
-# Copyright (C) 2011 The Android Open-Source Project
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# SPDX-FileCopyrightText: 2011 The Android Open-Source Project
+# SPDX-FileCopyrightText: The LineageOS Project
+# SPDX-FileCopyrightText: The Calyx Institute
+# SPDX-License-Identifier: Apache-2.0
 #
 
-include device/google/gs-common/device.mk
-include device/google/gs-common/gs_watchdogd/watchdog.mk
-include device/google/gs-common/ramdump_and_coredump/ramdump_and_coredump.mk
-include device/google/gs-common/soc/soc.mk
-include device/google/gs-common/soc/freq.mk
-include device/google/gs-common/modem/modem.mk
-include device/google/gs-common/aoc/aoc.mk
-include device/google/gs-common/thermal/dump/thermal.mk
-include device/google/gs-common/thermal/thermal_hal/device.mk
-include device/google/gs-common/pixel_metrics/pixel_metrics.mk
-include device/google/gs-common/performance/perf.mk
-include device/google/gs-common/power/power.mk
-include device/google/gs-common/display/dump_exynos_display.mk
-include device/google/gs101/dumpstate/item.mk
-include device/google/gs-common/radio/dump.mk
-include device/google/gs-common/gear/dumpstate/aidl.mk
-include device/google/gs-common/camera/dump.mk
-include device/google/gs-common/gps/dump/log.mk
-include device/google/gs-common/widevine/widevine.mk
-include device/google/gs-common/sota_app/factoryota.mk
-include device/google/gs-common/misc_writer/misc_writer.mk
-include device/google/gs-common/bootctrl/bootctrl_aidl.mk
-include device/google/gs-common/betterbug/betterbug.mk
-include device/google/gs-common/bcmbt/dump/dumplog.mk
-include device/google/gs-common/fingerprint/fingerprint.mk
-include device/google/gs-common/nfc/nfc.mk
+# Disable OMX
+PRODUCT_PROPERTY_OVERRIDES += \
+    vendor.media.omx=0
+
+# Installs gsi keys into ramdisk, to boot a developer GSI with verified boot.
+$(call inherit-product, $(SRC_TARGET_DIR)/product/developer_gsi_keys.mk)
+
+PRODUCT_COPY_FILES += \
+    frameworks/native/data/etc/android.software.ipsec_tunnel_migration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.ipsec_tunnel_migration.xml
+
+# sscoredump
+PRODUCT_PROPERTY_OVERRIDES += vendor.debug.ssrdump.type=sscoredump
+
+# Modem
+PRODUCT_PACKAGES += dump_modem
+
+# Thermal
+PRODUCT_PACKAGES += android.hardware.thermal-service.pixel
+
+# Thermal utils
+PRODUCT_PACKAGES += thermal_symlinks
+
+# Ensure enough free space to create zram backing device
+PRODUCT_PRODUCT_PROPERTIES += \
+    ro.zram_backing_device_min_free_mb=1536
+
+# DRM
+PRODUCT_PACKAGES += \
+    android.hardware.drm-service.clearkey
+
+# misc_writer
+PRODUCT_PACKAGES += \
+    misc_writer
+
+# Boot control
+PRODUCT_PACKAGES += \
+    android.hardware.boot-service.default-pixel \
+    android.hardware.boot-service.default_recovery-pixel
+
+PRODUCT_SOONG_NAMESPACES += device/google/gs-common/bootctrl/aidl
 
 TARGET_BOARD_PLATFORM := gs101
-DEVICE_IS_64BIT_ONLY ?= $(if $(filter %_64,$(TARGET_PRODUCT)),true,false)
-
-ifeq ($(DEVICE_IS_64BIT_ONLY),true)
-LOCAL_64ONLY := _64
-endif
 
 AB_OTA_POSTINSTALL_CONFIG += \
 	RUN_POSTINSTALL_system=true \
@@ -54,32 +54,21 @@ AB_OTA_POSTINSTALL_CONFIG += \
 	FILESYSTEM_TYPE_system=ext4 \
 POSTINSTALL_OPTIONAL_system=true
 
-# Set Vendor SPL to match platform
-VENDOR_SECURITY_PATCH := 2025-08-05
-
-# Set boot SPL
-BOOT_SECURITY_PATCH := 2025-08-05
-
 PRODUCT_SOONG_NAMESPACES += \
 	hardware/google/av \
 	hardware/google/interfaces \
 	hardware/google/pixel \
-	device/google/gs101 \
-	device/google/gs101/powerstats
+	device/google/gs101
 
 # OEM Unlock reporting
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
 	ro.oem_unlock_supported=1
-
-include device/google/gs101/modem/user.mk
 
 # From system.property
 PRODUCT_PROPERTY_OVERRIDES += \
 	ro.telephony.default_network=27 \
 	persist.vendor.ril.db_ecc.use.iccid_to_plmn=1 \
 	persist.vendor.ril.db_ecc.id.type=5
-	#rild.libpath=/system/lib64/libsec-ril.so \
-	#rild.libargs=-d /dev/umts_ipc0
 
 # SIT-RIL Logging setting
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -131,54 +120,19 @@ PRODUCT_PRODUCT_PROPERTIES += \
 PRODUCT_PROPERTY_OVERRIDES += \
 	telephony.active_modems.max_count=2
 
-USE_LASSEN_OEMHOOK := true
-# The "power-anomaly-sitril" is added into PRODUCT_SOONG_NAMESPACES when
-# $(USE_LASSEN_OEMHOOK) is true and $(BOARD_WITHOUT_RADIO) is not true.
-ifneq ($(BOARD_WITHOUT_RADIO),true)
-    $(call soong_config_set,sitril,use_lassen_oemhook_with_radio,true)
-endif
-
-# Use for GRIL
-USES_LASSEN_MODEM := true
-$(call soong_config_set, vendor_ril_google_feature, use_lassen_modem, true)
-
-ifeq ($(USES_GOOGLE_DIALER_CARRIER_SETTINGS),true)
-USE_GOOGLE_DIALER := true
-USE_GOOGLE_CARRIER_SETTINGS := true
-endif
-
-# Audio client implementation for RIL
-USES_GAUDIO := true
-
-# ######################
-# GRAPHICS - GPU (begin)
-
-# Must match BOARD_USES_SWIFTSHADER in BoardConfig.mk
-USE_SWIFTSHADER := false
-
 # HWUI
 TARGET_USES_VULKAN = true
 
-# Used in gfx_tools when defining tests with composer2 interface for gs101 devices
-$(call soong_config_set,gfx_tools,use_hwc2,true)
-
-include device/google/gs-common/gpu/gpu.mk
-PRODUCT_PACKAGES += \
-	libGLES_mali \
-	vulkan.mali \
-	libgpudataproducer
+# GPU
+PRODUCT_PACKAGES += gpu_probe
 
 # Install the OpenCL ICD Loader
 PRODUCT_SOONG_NAMESPACES += external/OpenCL-ICD-Loader
 PRODUCT_PACKAGES += \
-       libOpenCL \
-       mali_icd__customer_pixel_opencl-icd_ARM.icd
-ifeq ($(DEVICE_IS_64BIT_ONLY),false)
-PRODUCT_PACKAGES += \
-	mali_icd__customer_pixel_opencl-icd_ARM32.icd
-endif
+	libOpenCL
 
 PRODUCT_VENDOR_PROPERTIES += \
+	ro.hardware.egl=mali \
 	ro.hardware.vulkan=mali
 
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
@@ -192,13 +146,6 @@ PRODUCT_VENDOR_PROPERTIES += \
 	vendor.mali.base_protected_tls_max=67108864 \
 	vendor.mali.platform_agt_frequency_khz=24576
 
-ifeq ($(USE_SWIFTSHADER),true)
-PRODUCT_PACKAGES += \
-	libGLESv1_CM_swiftshader \
-	libEGL_swiftshader \
-	libGLESv2_swiftshader
-endif
-
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.opengles.aep.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.opengles.aep.xml \
 	frameworks/native/data/etc/android.hardware.vulkan.version-1_3.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.version.xml \
@@ -206,14 +153,6 @@ PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.vulkan.compute-0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.compute.xml \
 	frameworks/native/data/etc/android.software.vulkan.deqp.level-2025-03-01.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.vulkan.deqp.level.xml \
 	frameworks/native/data/etc/android.software.opengles.deqp.level-2025-03-01.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.opengles.deqp.level.xml
-
-ifeq ($(USE_SWIFTSHADER),true)
-PRODUCT_VENDOR_PROPERTIES += \
-	ro.hardware.egl = swiftshader
-else
-PRODUCT_VENDOR_PROPERTIES += \
-	ro.hardware.egl = mali
-endif
 
 # Configure EGL blobcache
 PRODUCT_VENDOR_PROPERTIES += \
@@ -227,63 +166,16 @@ PRODUCT_VENDOR_PROPERTIES += \
 # b/295257834 Add HDR shaders to SurfaceFlinger's pre-warming cache
 PRODUCT_VENDOR_PROPERTIES += ro.surface_flinger.prime_shader_cache.ultrahdr=1
 
-# GRAPHICS - GPU (end)
-# ####################
-
-# Device Manifest, Device Compatibility Matrix for Treble
-DEVICE_MANIFEST_FILE := \
-	device/google/gs101/manifest$(LOCAL_64ONLY).xml
-
-BOARD_USE_CODEC2_AIDL := V1
-ifneq (,$(filter aosp_%,$(TARGET_PRODUCT)))
-DEVICE_MANIFEST_FILE += \
-	device/google/gs101/manifest_media_aosp.xml
-
-PRODUCT_COPY_FILES += \
-	device/google/gs101/media_codecs_aosp_c2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_c2.xml
-else
-DEVICE_MANIFEST_FILE += \
-	device/google/gs101/manifest_media.xml
-
-PRODUCT_COPY_FILES += \
-	device/google/gs101/media_codecs_bo_c2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_c2.xml \
-	device/google/gs101/media_codecs_aosp_c2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_aosp_c2.xml
-endif
-
-DEVICE_MATRIX_FILE := \
-	device/google/gs101/compatibility_matrix.xml
-
 DEVICE_PACKAGE_OVERLAYS += device/google/gs101/overlay
+DEVICE_PACKAGE_OVERLAYS += device/google/gs101/overlay-lineage
 
 # Enforce the Product interface
 PRODUCT_PRODUCT_VNDK_VERSION := current
 PRODUCT_ENFORCE_PRODUCT_PARTITION_INTERFACE := true
 
-# Init files
-PRODUCT_COPY_FILES += \
-	device/google/gs101/conf/init.gs101.usb.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/hw/init.gs101.usb.rc \
-	device/google/gs101/conf/ueventd.gs101.rc:$(TARGET_COPY_OUT_VENDOR)/etc/ueventd.rc
-
-PRODUCT_COPY_FILES += \
-	device/google/gs101/conf/init.gs101.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/hw/init.gs101.rc
-
-ifneq (,$(filter 5.%, $(TARGET_LINUX_KERNEL_VERSION)))
-PRODUCT_COPY_FILES += \
-	device/google/gs101/storage/5.10/init.gs101.storage.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/hw/init.gs101.storage.rc
-else
-PRODUCT_COPY_FILES += \
-	device/google/gs101/storage/6.1/init.gs101.storage.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/hw/init.gs101.storage.rc
-endif
-
 # Recovery files
 PRODUCT_COPY_FILES += \
 	device/google/gs101/conf/init.recovery.device.rc:$(TARGET_COPY_OUT_RECOVERY)/root/init.recovery.gs101.rc
-
-ifneq ($(BOARD_WITHOUT_RADIO),true)
-PRODUCT_SOONG_NAMESPACES += device/google/gs101/conf
-else
-PRODUCT_SOONG_NAMESPACES += device/google/gs101/conf/nomodem
-endif
 
 # Fstab files
 PRODUCT_PACKAGES += \
@@ -291,15 +183,6 @@ PRODUCT_PACKAGES += \
 	fstab.gs101.vendor_ramdisk \
 	fstab.gs101-fips \
 	fstab.gs101-fips.vendor_ramdisk
-PRODUCT_COPY_FILES += \
-	device/google/gs101/conf/fstab.persist:$(TARGET_COPY_OUT_VENDOR)/etc/fstab.persist
-
-# Shell scripts
-PRODUCT_COPY_FILES += \
-        device/google/gs101/init.display.sh:$(TARGET_COPY_OUT_VENDOR)/bin/init.display.sh \
-	device/google/gs101/disable_contaminant_detection.sh:$(TARGET_COPY_OUT_VENDOR)/bin/hw/disable_contaminant_detection.sh
-
-include device/google/gs-common/insmod/insmod.mk
 
 # Insmod config files
 PRODUCT_COPY_FILES += \
@@ -309,22 +192,11 @@ PRODUCT_COPY_FILES += \
 PRODUCT_HOST_PACKAGES += \
 	mkdtimg
 
-PRODUCT_PACKAGES += \
-	messaging
-
 # CHRE
-## HAL
-include device/google/gs-common/chre/hal.mk
+## hal
+PRODUCT_PACKAGES += android.hardware.contexthub-service.generic
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.context_hub.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.context_hub.xml
-PRODUCT_PACKAGES += \
-	preloaded_nanoapps.json
-
-# Filesystem management tools
-PRODUCT_PACKAGES += \
-	linker.vendor_ramdisk \
-	tune2fs.vendor_ramdisk \
-	resize2fs.vendor_ramdisk
 
 # Userdata Checkpointing OTA GC
 PRODUCT_PACKAGES += \
@@ -351,28 +223,11 @@ PRODUCT_PROPERTY_OVERRIDES += \
 PRODUCT_PROPERTY_OVERRIDES += \
 	persist.vendor.radio.multisim_switch_support=true
 
-# RPMB TA
-PRODUCT_PACKAGES += \
-	tlrpmb
-
-# Touch firmware
-#PRODUCT_COPY_FILES += \
-	device/google/gs101/firmware/touch/s6sy761.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/s6sy761.fw
 # Touch
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.touchscreen.multitouch.jazzhand.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.touchscreen.multitouch.jazzhand.xml
 
 # Sensors
-ifneq (,$(findstring tangor, $(TARGET_PRODUCT)))
-PRODUCT_COPY_FILES += \
-        frameworks/native/data/etc/android.hardware.sensor.accelerometer.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.accelerometer.xml \
-        frameworks/native/data/etc/android.hardware.sensor.compass.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.compass.xml \
-	frameworks/native/data/etc/android.hardware.sensor.dynamic.head_tracker.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.dynamic.head_tracker.xml \
-        frameworks/native/data/etc/android.hardware.sensor.gyroscope.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.gyroscope.xml \
-        frameworks/native/data/etc/android.hardware.sensor.light.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.light.xml\
-        frameworks/native/data/etc/android.hardware.sensor.stepcounter.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.stepcounter.xml \
-        frameworks/native/data/etc/android.hardware.sensor.stepdetector.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.stepdetector.xml
-else
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.sensor.accelerometer.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.accelerometer.xml \
 	frameworks/native/data/etc/android.hardware.sensor.barometer.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.barometer.xml \
@@ -384,7 +239,6 @@ PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.sensor.proximity.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.proximity.xml \
 	frameworks/native/data/etc/android.hardware.sensor.stepcounter.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.stepcounter.xml \
 	frameworks/native/data/etc/android.hardware.sensor.stepdetector.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.sensor.stepdetector.xml
-endif
 
 # Add sensor HAL AIDL product packages
 PRODUCT_PACKAGES += android.hardware.sensors-service.multihal
@@ -399,14 +253,6 @@ PRODUCT_PACKAGES += \
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.software.midi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.midi.xml
 
-# Power HAL
-PRODUCT_COPY_FILES += \
-	device/google/gs101/task_profiles.json:$(TARGET_COPY_OUT_VENDOR)/etc/task_profiles.json
-# Legacy HW
-PRODUCT_COPY_FILES += \
-	device/google/gs101/powerhint_a0.json:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint_a0.json
-PRODUCT_COPY_FILES += \
-	device/google/gs101/powerhint_a1.json:$(TARGET_COPY_OUT_VENDOR)/etc/powerhint_a1.json
 -include hardware/google/pixel/power-libperfmgr/aidl/device.mk
 
 # IRQ rebalancing.
@@ -420,82 +266,30 @@ PRODUCT_PACKAGES += \
 # Audio HALs
 #
 
-# Audio Configurations
-USE_LEGACY_LOCAL_AUDIO_HAL := false
-USE_XML_AUDIO_POLICY_CONF := 1
-
 # Enable AAudio MMAP/NOIRQ data path.
 PRODUCT_PROPERTY_OVERRIDES += aaudio.mmap_policy=2
 PRODUCT_PROPERTY_OVERRIDES += aaudio.mmap_exclusive_policy=2
 PRODUCT_PROPERTY_OVERRIDES += aaudio.hw_burst_min_usec=2000
 
-# Calliope firmware overwrite
-#PRODUCT_COPY_FILES += \
-	device/google/gs101/firmware/calliope_dram.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/calliope_dram.bin \
-	device/google/gs101/firmware/calliope_sram.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/calliope_sram.bin \
-	device/google/gs101/firmware/calliope_dram_2.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/calliope_dram_2.bin \
-	device/google/gs101/firmware/calliope_sram_2.bin:$(TARGET_COPY_OUT_VENDOR)/firmware/calliope_sram_2.bin \
-	device/google/gs101/firmware/calliope2.dt:$(TARGET_COPY_OUT_VENDOR)/firmware/calliope2.dt \
-
-# Cannot reference variables defined in BoardConfig.mk, uncomment this if
-# BOARD_USE_OFFLOAD_AUDIO and BOARD_USE_OFFLOAD_EFFECT are true
-## AudioEffectHAL library
-#PRODUCT_PACKAGES += \
-#	libexynospostprocbundle
-
-# Cannot reference variables defined in BoardConfig.mk, uncomment this if
-# BOARD_USE_SOUNDTRIGGER_HAL is true
-#PRODUCT_PACKAGES += \
-#	sound_trigger.primary.maran9820
-
-# A-Box Service Daemon
-#PRODUCT_PACKAGES += main_abox
-
-# Libs
-PRODUCT_PACKAGES += \
-	com.android.future.usb.accessory
-
-# for now include gralloc here. should come from hardware/google_devices/exynos5
-PRODUCT_PACKAGES += \
-	android.hardware.memtrack-service.pixel \
-	libion_exynos \
-	libion
-
-PRODUCT_PACKAGES += \
-	libhwjpeg
-
-# Video Editor
-PRODUCT_PACKAGES += \
-	VideoEditorGoogle
-
-# WideVine modules
-PRODUCT_PACKAGES += \
-	liboemcrypto
-
-# Lyric Camera HAL settings
-include device/google/gs-common/camera/lyric.mk
-$(call soong_config_set,lyric,soc,gs101)
-$(call soong_config_set,google3a_config,soc,gs101)
+# Camera
+PRODUCT_SOONG_NAMESPACES += \
+    hardware/google/camera
 
 # WiFi
 PRODUCT_PACKAGES += \
-	wificond \
-	libwpa_client \
-	WifiOverlay \
+	WifiOverlay
 
 # Connectivity
 PRODUCT_PACKAGES += \
         ConnectivityOverlay
-
-# Storage dump
-include device/google/gs-common/storage/storage.mk
 
 # Storage health HAL
 PRODUCT_PACKAGES += \
 	android.hardware.health.storage-service.default
 
 # Battery Mitigation
-include device/google/gs-common/battery_mitigation/bcl.mk
+PRODUCT_PROPERTY_OVERRIDES += \
+    vendor.battery_mitigation.aidl.enable=true
 
 # storage pixelstats
 -include hardware/google/pixel/pixelstats/device.mk
@@ -511,21 +305,6 @@ PRODUCT_VENDOR_PROPERTIES += sys.usb.ffs.io_uring_enabled=true
 # Enforce generic ramdisk allow list
 $(call inherit-product, $(SRC_TARGET_DIR)/product/generic_ramdisk.mk)
 
-# Titan-M
-ifeq (,$(filter true, $(BOARD_WITHOUT_DTLS)))
-include device/google/gs-common/dauntless/gsc.mk
-else
-# include dauntless sepolicy to avoid compile error on devices without dauntless
-BOARD_VENDOR_SEPOLICY_DIRS += device/google/gs-common/dauntless/sepolicy
-endif
-
-# Copy Camera HFD Setfiles
-#PRODUCT_COPY_FILES += \
-	device/google/gs101/firmware/camera/libhfd/default_configuration.hfd.cfg.json:$(TARGET_COPY_OUT_VENDOR)/firmware/default_configuration.hfd.cfg.json \
-	device/google/gs101/firmware/camera/libhfd/pp_cfg.json:$(TARGET_COPY_OUT_VENDOR)/firmware/pp_cfg.json \
-	device/google/gs101/firmware/camera/libhfd/tracker_cfg.json:$(TARGET_COPY_OUT_VENDOR)/firmware/tracker_cfg.json \
-	device/google/gs101/firmware/camera/libhfd/WithLightFixNoBN.SDNNmodel:$(TARGET_COPY_OUT_VENDOR)/firmware/WithLightFixNoBN.SDNNmodel
-
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.wifi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.wifi.xml \
 	frameworks/native/data/etc/android.hardware.wifi.direct.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.wifi.direct.xml \
@@ -535,28 +314,14 @@ PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.usb.host.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.usb.host.xml \
 	frameworks/native/data/etc/android.hardware.usb.accessory.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.usb.accessory.xml
 
-# (See b/211840489)
-ifneq ($(DISABLE_CAMERA_FS_AF),true)
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.camera.flash-autofocus.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.flash-autofocus.xml
-else
-PRODUCT_COPY_FILES += \
-	frameworks/native/data/etc/android.hardware.camera.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.xml
-endif
 
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.camera.front.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.front.xml \
 	frameworks/native/data/etc/android.hardware.camera.concurrent.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.concurrent.xml \
 	frameworks/native/data/etc/android.hardware.camera.full.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.full.xml\
 	frameworks/native/data/etc/android.hardware.camera.raw.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.raw.xml\
-
-#PRODUCT_COPY_FILES += \
-	frameworks/native/data/etc/handheld_core_hardware.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/handheld_core_hardware.xml \
-	frameworks/native/data/etc/android.hardware.wifi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.wifi.xml \
-	frameworks/native/data/etc/android.hardware.wifi.direct.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.wifi.direct.xml \
-	frameworks/native/data/etc/android.hardware.wifi.passpoint.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.wifi.passpoint.xml \
-	frameworks/native/data/etc/android.hardware.usb.host.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.usb.host.xml \
-	frameworks/native/data/etc/android.hardware.usb.accessory.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.usb.accessory.xml \
 
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.audio.low_latency.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.audio.low_latency.xml \
@@ -568,12 +333,6 @@ PRODUCT_COPY_FILES += \
 PRODUCT_PROPERTY_OVERRIDES += \
 	debug.slsi_platform=1 \
 	debug.hwc.winupdate=1
-
-# hw composer HAL
-$(call soong_config_set,google_displaycolor,displaycolor_platform,gs101)
-PRODUCT_PACKAGES += \
-	libdisplaycolor \
-	hwcomposer.$(TARGET_BOARD_PLATFORM)
 
 PRODUCT_PROPERTY_OVERRIDES += \
 	debug.sf.disable_backpressure=0 \
@@ -598,7 +357,6 @@ PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.surface_flinger.use_content_detection_f
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.surface_flinger.max_frame_buffer_acquired_buffers=3
 
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.surface_flinger.supports_background_blur=1
-PRODUCT_SYSTEM_PROPERTIES += ro.launcher.blur.appLaunch=0
 
 # Must align with HAL types Dataspace
 # The data space of wide color gamut composition preference is Dataspace::DISPLAY_P3
@@ -613,17 +371,9 @@ PRODUCT_DEFAULT_PROPERTY_OVERRIDES += ro.surface_flinger.display_update_imminent
 
 PRODUCT_PROPERTY_OVERRIDES += \
 	persist.sys.sf.native_mode=2
-PRODUCT_COPY_FILES += \
-	device/google/gs101/display/display_colordata_cal0.pb:$(TARGET_COPY_OUT_VENDOR)/etc/display_colordata_cal0.pb
 
 # limit DPP downscale ratio
 PRODUCT_DEFAULT_PROPERTY_OVERRIDES += vendor.hwc.dpp.downscale=2
-
-# Cannot reference variables defined in BoardConfig.mk, uncomment this if
-# BOARD_USES_EXYNOS_DSS_FEATURE is true
-## set the dss enable status setup
-#PRODUCT_PROPERTY_OVERRIDES += \
-#        ro.exynos.dss=1
 
 # Cannot reference variables defined in BoardConfig.mk, uncomment this if
 # BOARD_USES_EXYNOS_AFBC_FEATURE is true
@@ -633,49 +383,21 @@ PRODUCT_PROPERTY_OVERRIDES += \
 
 PRODUCT_CHARACTERISTICS := nosdcard
 
-# WPA SUPPLICANT
-PRODUCT_COPY_FILES += \
-	device/google/gs101/wifi/p2p_supplicant_overlay.conf:$(TARGET_COPY_OUT_VENDOR)/etc/wifi/p2p_supplicant_overlay.conf \
-	device/google/gs101/wifi/wpa_supplicant_overlay.conf:$(TARGET_COPY_OUT_VENDOR)/etc/wifi/wpa_supplicant_overlay.conf
-
-# WIFI COEX
-PRODUCT_COPY_FILES += \
-	device/google/gs101/wifi/coex_table.xml:$(TARGET_COPY_OUT_VENDOR)/etc/wifi/coex_table.xml
-
 PRODUCT_PACKAGES += hostapd
 PRODUCT_PACKAGES += wpa_supplicant
 PRODUCT_PACKAGES += wpa_supplicant.conf
 
 WIFI_PRIV_CMD_UPDATE_MBO_CELL_STATUS := enabled
 
-####################################
-## VIDEO
-####################################
-
-$(call soong_config_set,bigo,soc,gs101)
-
-# 1. Codec 2.0
-# for settings used by different C2 hal
-include device/google/gs-common/mediacodec/common/mediacodec_common.mk
-# for Exynos C2 Hal
-include device/google/gs-common/mediacodec/samsung/mediacodec_samsung.mk
-
-PRODUCT_COPY_FILES += \
-	device/google/gs101/media_codecs_performance_c2.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_performance_c2.xml \
-
+# Video
 PRODUCT_PROPERTY_OVERRIDES += \
     debug.c2.use_dmabufheaps=1 \
     media.c2.dmabuf.padding=512 \
     debug.stagefright.ccodec_delayed_params=1 \
     ro.vendor.gpu.dataspace=1
 
-ifneq ($(BOARD_USE_CODEC2_AIDL), )
 PRODUCT_PROPERTY_OVERRIDES += \
         debug.stagefright.c2-poolmask=1507328
-else
-PRODUCT_PROPERTY_OVERRIDES += \
-        debug.stagefright.c2-poolmask=458752
-endif
 
 # Create input surface on the framework side
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -683,54 +405,20 @@ PRODUCT_PROPERTY_OVERRIDES += \
 
 PRODUCT_PROPERTY_OVERRIDES += media.c2.hal.selection=aidl
 
-# 2. OpenMAX IL
-PRODUCT_COPY_FILES += \
-	device/google/gs101/media_codecs.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs.xml \
-	device/google/gs101/media_codecs_performance.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_performance.xml
-####################################
-
-# Telephony
-#PRODUCT_COPY_FILES += \
-	frameworks/av/media/libstagefright/data/media_codecs_google_telephony.xml:$(TARGET_COPY_OUT_VENDOR)/etc/media_codecs_google_telephony.xml
-
-# CBD (CP booting deamon)
-CBD_USE_V2 := true
-CBD_PROTOCOL_SIT := true
-
 # setup dalvik vm configs.
 $(call inherit-product, frameworks/native/build/phone-xhdpi-6144-dalvik-heap.mk)
 
 PRODUCT_TAGS += dalvik.gc.type-precise
 
-# Exynos OpenVX framework
-PRODUCT_PACKAGES += \
-		libexynosvision
-
-ifeq ($(TARGET_USES_CL_KERNEL),true)
-PRODUCT_PACKAGES += \
-	libopenvx-opencl
-endif
-
 # Location
-ifeq (,$(filter tangor citron,$(subst _, ,$(TARGET_PRODUCT))))
-include device/google/gs-common/gps/brcm/device.mk
-PRODUCT_COPY_FILES += \
-	device/google/gs101/location/gps.cer:$(TARGET_COPY_OUT_VENDOR)/etc/gnss/gps.cer
-PRODUCT_COPY_FILES += \
-    device/google/gs101/location/lhd_user.conf:$(TARGET_COPY_OUT_VENDOR)/etc/gnss/lhd.conf \
-    device/google/gs101/location/scd_user.conf:$(TARGET_COPY_OUT_VENDOR)/etc/gnss/scd.conf
-endif
+PRODUCT_PACKAGES += \
+    android.hardware.location.gps.prebuilt.xml
+
 # Trusty (KM, GK, Storage)
 $(call inherit-product, system/core/trusty/trusty-storage.mk)
 $(call inherit-product, system/core/trusty/trusty-base.mk)
 
-# Trusty dump
-include device/google/gs-common/trusty/trusty.mk
-
-include device/google/gs101/trusty_metricsd/trusty_metricsd.mk
-
 PRODUCT_PACKAGES += \
-	android.hardware.graphics.composer@2.4-impl \
 	android.hardware.graphics.composer@2.4-service
 
 # Storage: for factory reset protection feature
@@ -741,14 +429,6 @@ PRODUCT_PROPERTY_OVERRIDES += \
 PRODUCT_PRODUCT_PROPERTIES += \
 	persist.bluetooth.bqr.event_mask=30 \
 	persist.bluetooth.bqr.min_interval_ms=500
-
-# Enable Bluetooth AutoOn feature
-PRODUCT_PRODUCT_PROPERTIES += \
-    bluetooth.server.automatic_turn_on=true
-
-#VNDK
-PRODUCT_PACKAGES += \
-	vndk-libs
 
 PRODUCT_ENFORCE_RRO_TARGETS := \
 	framework-res
@@ -776,89 +456,37 @@ PRODUCT_PACKAGES += \
 PRODUCT_PACKAGES += \
 	Iwlan
 
-PRODUCT_PACKAGES += \
-	whitelist \
-	libstagefright_hdcp \
-	libskia_opt
-
-#PRODUCT_PACKAGES += \
-	mfc_fw.bin \
-	calliope_sram.bin \
-	calliope_dram.bin \
-	calliope_iva.bin \
-	vts.bin
-
-ifneq ($(BOARD_WITHOUT_RADIO),true)
-PRODUCT_PACKAGES += ShannonIms
-
-PRODUCT_PACKAGES += ShannonRcs
-endif
-
-# Exynos RIL and telephony
-# Multi SIM(DSDS)
-SIM_COUNT := 2
-$(call soong_config_set,sim,sim_count,$(SIM_COUNT))
-SUPPORT_MULTI_SIM := true
-# Support NR
-SUPPORT_NR := true
-# Using IRadio 1.6
-USE_RADIO_HAL_1_6 := true
-# Support SecureElement HAL for HIDL
-USE_SE_HIDL := true
-
-ifeq ($(DEVICE_IS_64BIT_ONLY),true)
-$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit_only.mk)
-else
-$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
-endif
-
-include device/google/gs-common/sensors/sensors.mk
-$(call soong_config_set,usf,target_soc,gs101)
-
 PRODUCT_COPY_FILES += \
 	device/google/gs101/default-permissions.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/default-permissions/default-permissions.xml \
 	device/google/gs101/component-overrides.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sysconfig/component-overrides.xml
-
-# modem logging binary/configs
-PRODUCT_PACKAGES += modem_logging_control
-
-# modem logging configs
-PRODUCT_COPY_FILES += \
-	device/google/gs101/radio/config/logging.conf:$(TARGET_COPY_OUT_VENDOR)/etc/modem/logging.conf \
-	device/google/gs101/radio/config/default.cfg:$(TARGET_COPY_OUT_VENDOR)/etc/modem/default.cfg \
-	device/google/gs101/radio/config/default.nprf:$(TARGET_COPY_OUT_VENDOR)/etc/modem/default.nprf \
-	device/google/gs101/radio/config/default_metrics.xml:$(TARGET_COPY_OUT_VENDOR)/etc/modem/default_metrics.xml \
-	device/google/gs101/radio/config/teamfood_default.cfg:$(TARGET_COPY_OUT_VENDOR)/etc/modem/teamfood_default.cfg \
-	device/google/gs101/radio/config/teamfood_default.nprf:$(TARGET_COPY_OUT_VENDOR)/etc/modem/teamfood_default.nprf \
-	device/google/gs101/radio/config/teamfood_default_metrics.xml:$(TARGET_COPY_OUT_VENDOR)/etc/modem/teamfood_default_metrics.xml \
-	device/google/gs101/radio/config/default_stability.cfg:$(TARGET_COPY_OUT_VENDOR)/etc/modem/default_stability.cfg \
-	device/google/gs101/radio/config/default_stability.nprf:$(TARGET_COPY_OUT_VENDOR)/etc/modem/default_stability.nprf \
-	device/google/gs101/radio/config/default_NAS_RRC.cfg:$(TARGET_COPY_OUT_VENDOR)/etc/modem/default_NAS_RRC.cfg \
-	device/google/gs101/radio/config/default_NAS_RRC.nprf:$(TARGET_COPY_OUT_VENDOR)/etc/modem/default_NAS_RRC.nprf \
-	device/google/gs101/radio/config/default_network.cfg:$(TARGET_COPY_OUT_VENDOR)/etc/modem/default_network.cfg \
-	device/google/gs101/radio/config/default_network.nprf:$(TARGET_COPY_OUT_VENDOR)/etc/modem/default_network.nprf \
-	device/google/gs101/radio/config/Pixel_Default.cfg:$(TARGET_COPY_OUT_VENDOR)/etc/modem/Pixel_Default.cfg \
-	device/google/gs101/radio/config/Pixel_Default.nprf:$(TARGET_COPY_OUT_VENDOR)/etc/modem/Pixel_Default.nprf \
-	device/google/gs101/radio/config/Pixel_Default_metrics.xml:$(TARGET_COPY_OUT_VENDOR)/etc/modem/Pixel_Default_metrics.xml \
-	device/google/gs101/radio/config/Pixel_stability.cfg:$(TARGET_COPY_OUT_VENDOR)/etc/modem/Pixel_stability.cfg \
-	device/google/gs101/radio/config/Pixel_stability.nprf:$(TARGET_COPY_OUT_VENDOR)/etc/modem/Pixel_stability.nprf
-
-PRODUCT_COPY_FILES += \
-	device/google/gs101/radio/gnss_blanking.csv:$(TARGET_COPY_OUT_VENDOR)/etc/modem/gnss_blanking.csv
 
 PRODUCT_PACKAGES += \
 	android.hardware.health-service.gs101 \
 	android.hardware.health-service.gs101_recovery \
 
-# Audio
+# Audio HAL configurations
+PRODUCT_COPY_FILES += \
+    frameworks/av/services/audiopolicy/config/a2dp_audio_policy_configuration_7_0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_audio_policy_configuration_7_0.xml \
+    frameworks/av/services/audiopolicy/config/a2dp_in_audio_policy_configuration_7_0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_in_audio_policy_configuration_7_0.xml \
+    frameworks/av/services/audiopolicy/config/hearing_aid_audio_policy_configuration_7_0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/hearing_aid_audio_policy_configuration_7_0.xml \
+    frameworks/av/services/audiopolicy/config/r_submix_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/r_submix_audio_policy_configuration.xml \
+    frameworks/av/services/audiopolicy/config/usb_audio_policy_configuration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/usb_audio_policy_configuration.xml \
+    frameworks/av/services/audiopolicy/config/default_volume_tables.xml:$(TARGET_COPY_OUT_VENDOR)/etc/default_volume_tables.xml
+
 # Audio HAL Server & Default Implementations
-include device/google/gs-common/audio/hidl_gs101.mk
+PRODUCT_PACKAGES += \
+    android.hardware.audio.service \
+    android.hardware.audio@7.1-impl \
+    android.hardware.audio.effect@7.0-impl \
+    android.hardware.soundtrigger@2.3-impl \
+    android.hardware.bluetooth.audio-impl
 
-## AoC soong
-$(call soong_config_set,aoc,target_soc,$(TARGET_BOARD_PLATFORM))
-$(call soong_config_set,aoc,target_product,$(TARGET_PRODUCT))
-
-$(call soong_config_set,android_hardware_audio,run_64bit,true)
+# Audio HAL libraries
+PRODUCT_PACKAGES += \
+    audio.usb.default \
+    audio.usbv2.default \
+    audio.bluetooth.default \
+    audio.r_submix.default
 
 # Audio properties
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -867,41 +495,24 @@ PRODUCT_PROPERTY_OVERRIDES += \
 	ro.audio.monitorRotation = true \
 	ro.audio.offload_wakelock=false
 
-# declare use of spatial audio
-# PRODUCT_PROPERTY_OVERRIDES += \
-#	ro.audio.spatializer_enabled=true
-
 # vndservicemanager and vndservice no longer included in API 30+, however needed by vendor code.
 # See b/148807371 for reference
 PRODUCT_PACKAGES += vndservicemanager
 PRODUCT_PACKAGES += vndservice
 
-PRODUCT_PACKAGES += \
-	google.hardware.media.c2@1.0-service \
-	libgc2_store \
-	libgc2_base \
-	libgc2_av1_dec \
-	libbo_av1 \
-	libgc2_cwl \
-	libgc2_utils
-
 ## Start packet router
-include device/google/gs-common/telephony/pktrouter.mk
+PRODUCT_PROPERTY_OVERRIDES += vendor.pktrouter=1
 
 # Thermal HAL
 PRODUCT_PROPERTY_OVERRIDES += persist.vendor.enable.thermal.genl=true
 
 # EdgeTPU
-include device/google/gs-common/edgetpu/edgetpu.mk
-# Config variables for TPU chip on device.
-$(call soong_config_set,edgetpu_config,chip,abrolhos)
+# Tflite Darwinn delegate property
+PRODUCT_VENDOR_PROPERTIES += vendor.edgetpu.tflite_delegate.force_disable_io_coherency=0
 
-# TPU firmware
-PRODUCT_PACKAGES += edgetpu-abrolhos.fw
-
-# Connectivity Thermal Power Manager
-PRODUCT_PACKAGES += \
-	ConnectivityThermalPowerManager
+# Edgetpu CPU scheduler property
+PRODUCT_VENDOR_PROPERTIES += vendor.edgetpu.cpu_scheduler.policy=FIFO
+PRODUCT_VENDOR_PROPERTIES += vendor.edgetpu.cpu_scheduler.priority=99
 
 # A/B support
 PRODUCT_PACKAGES += \
@@ -914,12 +525,6 @@ PRODUCT_PACKAGES += \
 # pKVM
 $(call inherit-product, packages/modules/Virtualization/apex/product_packages.mk)
 PRODUCT_BUILD_PVMFW_IMAGE := true
-ifeq ($(TARGET_PKVM_ENABLED),true)
-    PRODUCT_PACKAGES += pkvm_enabler
-else
-    PRODUCT_COPY_FILES += \
-	    device/google/gs101/pkvm/pkvm_experiment.rc:$(TARGET_COPY_OUT_VENDOR)/etc/init/pkvm_experiment.rc
-endif
 
 # Enable watchdog timeout loop breaker.
 PRODUCT_PROPERTY_OVERRIDES += \
@@ -944,21 +549,8 @@ PRODUCT_PROPERTY_OVERRIDES += \
 # Project
 include hardware/google/pixel/common/pixel-common-device.mk
 
-# Pixel Logger
-include hardware/google/pixel/PixelLogger/PixelLogger.mk
-
-ifneq ($(BOARD_WITHOUT_RADIO),true)
-# Telephony
-include device/google/gs101/telephony/user.mk
-endif
-
 # Wifi ext
 include hardware/google/pixel/wifi_ext/device.mk
-
-# Install product specific framework compatibility matrix
-# (TODO: b/169535506) This includes the FCM for system_ext and product partition.
-# It must be split into the FCM of each partition.
-DEVICE_PRODUCT_COMPATIBILITY_MATRIX_FILE += device/google/gs101/device_framework_matrix_product.xml
 
 # Keymaster configuration
 PRODUCT_COPY_FILES += \
@@ -975,12 +567,53 @@ PRODUCT_VENDOR_PROPERTIES += ro.crypto.metadata_init_delete_all_keys.enabled=tru
 # Hardware Info Collection
 include hardware/google/pixel/HardwareInfo/HardwareInfo.mk
 
-# Touch service
-include device/google/gs-common/touch/twoshay/aidl_gs101.mk
-include device/google/gs-common/touch/twoshay/twoshay.mk
-
 # Allow longer timeout for incident report generation in bugreport
 # Overriding in /product partition instead of /vendor intentionally,
 # since it can't be overridden from /vendor.
 PRODUCT_PRODUCT_PROPERTIES += \
 	dumpstate.strict_run=false
+
+# AiAi Config
+PRODUCT_COPY_FILES += \
+    device/google/gs101/allowlist_com.google.android.as.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/sysconfig/allowlist_com.google.android.as.xml
+
+# Camera
+PRODUCT_PRODUCT_PROPERTIES += \
+    ro.vendor.camera.extensions.package=com.google.android.apps.camera.services \
+    ro.vendor.camera.extensions.service=com.google.android.apps.camera.services.extensions.service.PixelExtensions
+
+# Lineage Health
+include hardware/google/pixel/lineage_health/device.mk
+
+$(call soong_config_set_bool,lineage_health,charging_control_supports_deadline,true)
+$(call soong_config_set_bool,lineage_health,charging_control_supports_limit,true)
+$(call soong_config_set_bool,lineage_health,charging_control_supports_toggle,false)
+
+# Linker config
+PRODUCT_VENDOR_LINKER_CONFIG_FRAGMENTS += \
+    device/google/gs101/linker.config.json
+
+# Parts
+PRODUCT_PACKAGES += \
+    GoogleParts
+
+# Properties
+TARGET_PRODUCT_PROP += device/google/gs101/product.prop
+TARGET_SYSTEM_PROP += device/google/gs101/system.prop
+
+# Tethering
+PRODUCT_PACKAGES += \
+    TetheringOverlay
+
+# Touch
+include hardware/google/pixel/touch/device.mk
+
+# VINTF
+DEVICE_FRAMEWORK_COMPATIBILITY_MATRIX_FILE += \
+    device/google/gs101/vintf/vendor_framework_compatibility_matrix.xml
+DEVICE_MANIFEST_FILE += \
+    device/google/gs101/vintf/manifest.xml
+DEVICE_MATRIX_FILE += \
+    device/google/gs101/vintf/compatibility_matrix.xml
+DEVICE_PRODUCT_COMPATIBILITY_MATRIX_FILE += \
+    device/google/gs101/vintf/device_framework_matrix_product.xml
