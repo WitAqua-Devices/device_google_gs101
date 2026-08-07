@@ -20,14 +20,32 @@ TARGET_2ND_CPU_ABI2 := armeabi
 TARGET_2ND_CPU_VARIANT := generic
 TARGET_2ND_CPU_VARIANT_RUNTIME := cortex-a53
 
-BOARD_KERNEL_CMDLINE += dyndbg=\"func alloc_contig_dump_pages +p\"
-BOARD_KERNEL_CMDLINE += earlycon=exynos4210,0x10A00000 console=ttySAC0,115200 androidboot.console=ttySAC0 printk.devkmsg=on
-BOARD_KERNEL_CMDLINE += cma_sysfs.experimental=Y
-BOARD_KERNEL_CMDLINE += rcupdate.rcu_expedited=1 rcu_nocbs=all rcutree.enable_rcu_lazy
-BOARD_KERNEL_CMDLINE += swiotlb=noforce
-BOARD_KERNEL_CMDLINE += cgroup.memory=nokmem
-BOARD_KERNEL_CMDLINE += disable_dma32=on
-BOARD_BOOTCONFIG += androidboot.boot_devices=14700000.ufs
+BOARD_BOOTCONFIG += \
+    androidboot.load_modules_parallel=true \
+    androidboot.boot_devices=14700000.ufs
+
+BOARD_KERNEL_CMDLINE += \
+    fips140.load_sequential=1 \
+    exynos_mfc.load_sequential=1 \
+    exynos_drm.load_sequential=1 \
+    pcie-exynos-core.load_sequential=1 \
+    g2d.load_sequential=1 \
+    disable_dma32=on \
+    dyndbg=\"func alloc_contig_dump_pages +p\" \
+    earlycon=exynos4210,0x10A00000 \
+    console=ttySAC0,115200 \
+    androidboot.console=ttySAC0 \
+    printk.devkmsg=on \
+    cma_sysfs.experimental=Y \
+    rcupdate.rcu_expedited=1 \
+    rcu_nocbs=all \
+    rcutree.enable_rcu_lazy \
+    swiotlb=noforce \
+    cgroup.memory=nokmem \
+    rodata=on \
+    at24.write_timeout=100 \
+    log_buf_len=1024K \
+    android_arch_task_struct_size=512
 
 TARGET_NO_BOOTLOADER := true
 BOARD_PREBUILT_BOOTIMAGE := $(wildcard $(TARGET_KERNEL_DIR)/boot.img)
@@ -73,10 +91,18 @@ ifneq ($(PRODUCT_BUILD_PVMFW_IMAGE),false)
 AB_OTA_PARTITIONS += pvmfw
 endif
 
+ifneq (,$(AVB_CUSTOM_KEY_PATH))
+BOARD_AVB_ALGORITHM := $(AVB_CUSTOM_ALGORITHM)
+BOARD_AVB_KEY_PATH := $(AVB_CUSTOM_KEY_PATH)
+else
+AVB_CUSTOM_ALGORITHM := SHA256_RSA2048
+AVB_CUSTOM_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
+endif
+
 # Enable chain partition for system.
 BOARD_AVB_VBMETA_SYSTEM := system system_ext product
-BOARD_AVB_VBMETA_SYSTEM_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
-BOARD_AVB_VBMETA_SYSTEM_ALGORITHM := SHA256_RSA2048
+BOARD_AVB_VBMETA_SYSTEM_ALGORITHM := $(AVB_CUSTOM_ALGORITHM)
+BOARD_AVB_VBMETA_SYSTEM_KEY_PATH := $(AVB_CUSTOM_KEY_PATH)
 BOARD_AVB_VBMETA_SYSTEM_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
 BOARD_AVB_VBMETA_SYSTEM_ROLLBACK_INDEX_LOCATION := 1
 
@@ -85,20 +111,22 @@ BOARD_AVB_VBMETA_SYSTEM += pvmfw
 endif
 
 # Enable chained vbmeta for boot images
-BOARD_AVB_BOOT_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
-BOARD_AVB_BOOT_ALGORITHM := SHA256_RSA2048
+BOARD_AVB_BOOT_ALGORITHM := $(AVB_CUSTOM_ALGORITHM)
+BOARD_AVB_BOOT_KEY_PATH := $(AVB_CUSTOM_KEY_PATH)
 BOARD_AVB_BOOT_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
 BOARD_AVB_BOOT_ROLLBACK_INDEX_LOCATION := 2
 
 # Enable chain partition for vendor.
 BOARD_AVB_VBMETA_VENDOR := vendor
-BOARD_AVB_VBMETA_VENDOR_KEY_PATH := external/avb/test/data/testkey_rsa2048.pem
-BOARD_AVB_VBMETA_VENDOR_ALGORITHM := SHA256_RSA2048
+BOARD_AVB_VBMETA_VENDOR_ALGORITHM := $(AVB_CUSTOM_ALGORITHM)
+BOARD_AVB_VBMETA_VENDOR_KEY_PATH := $(AVB_CUSTOM_KEY_PATH)
 BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX := $(PLATFORM_SECURITY_PATCH_TIMESTAMP)
 BOARD_AVB_VBMETA_VENDOR_ROLLBACK_INDEX_LOCATION := 3
 
 # Verified Boot
+ifneq ($(WITH_AVB),true)
 BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flags 3
+endif
 
 TARGET_USERIMAGES_USE_EXT4 := true
 TARGET_USERIMAGES_USE_F2FS := true
@@ -147,11 +175,6 @@ BOARD_USES_METADATA_PARTITION := true
 
 # exynos RIL
 ENABLE_VENDOR_RIL_SERVICE := true
-
-# Bluetooth defines
-# TODO(b/123695868): Remove the need for this
-BOARD_BLUETOOTH_BDROID_BUILDCFG_INCLUDE_DIR := \
-	build/make/target/board/mainline_arm64/bluetooth
 
 # Boot.img
 BOARD_RAMDISK_USE_LZ4     := true
@@ -214,7 +237,6 @@ BOARD_VENDOR_SEPOLICY_DIRS += \
     hardware/google/pixel-sepolicy/input \
     hardware/google/pixel-sepolicy/powerstats \
     device/google/gs101/sepolicy/certificates \
-    device/google/gs101/sepolicy/recovery \
     device/google/gs101/sepolicy/vendor
 
 PRODUCT_PRIVATE_SEPOLICY_DIRS += \
@@ -228,12 +250,6 @@ SYSTEM_EXT_PRIVATE_SEPOLICY_DIRS += \
 
 SYSTEM_EXT_PUBLIC_SEPOLICY_DIRS += \
     device/google/gs101/sepolicy/system_ext/public
-
-# Battery options
-BOARD_KERNEL_CMDLINE += at24.write_timeout=100
-
-# Enable larger logbuf
-BOARD_KERNEL_CMDLINE += log_buf_len=1024K
 
 # Protected VM firmware
 BOARD_PVMFWIMAGE_PARTITION_SIZE := 0x00100000
