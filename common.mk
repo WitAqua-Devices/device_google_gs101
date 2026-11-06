@@ -5,20 +5,8 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Installs gsi keys into ramdisk, to boot a developer GSI with verified boot.
-$(call inherit-product, $(SRC_TARGET_DIR)/product/developer_gsi_keys.mk)
-
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.software.ipsec_tunnel_migration.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.ipsec_tunnel_migration.xml
-
-# Modem
-PRODUCT_PACKAGES += dump_modem
-
-# Thermal
-PRODUCT_PACKAGES += android.hardware.thermal-service.pixel
-
-# Thermal utils
-PRODUCT_PACKAGES += thermal_symlinks
 
 # DRM
 PRODUCT_PACKAGES += \
@@ -27,13 +15,6 @@ PRODUCT_PACKAGES += \
 # misc_writer
 PRODUCT_PACKAGES += \
     misc_writer
-
-# Boot control
-PRODUCT_PACKAGES += \
-    android.hardware.boot-service.default-pixel \
-    android.hardware.boot-service.default_recovery-pixel
-
-PRODUCT_SOONG_NAMESPACES += device/google/gs-common/bootctrl/aidl
 
 TARGET_BOARD_PLATFORM := gs101
 
@@ -52,9 +33,6 @@ PRODUCT_SOONG_NAMESPACES += \
 # HWUI
 TARGET_USES_VULKAN = true
 
-# GPU
-PRODUCT_PACKAGES += gpu_probe
-
 # Install the OpenCL ICD Loader
 PRODUCT_SOONG_NAMESPACES += external/OpenCL-ICD-Loader
 PRODUCT_PACKAGES += \
@@ -65,8 +43,8 @@ PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.hardware.vulkan.version-1_3.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.version.xml \
 	frameworks/native/data/etc/android.hardware.vulkan.level-1.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.level.xml \
 	frameworks/native/data/etc/android.hardware.vulkan.compute-0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.vulkan.compute.xml \
-	frameworks/native/data/etc/android.software.vulkan.deqp.level-2025-03-01.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.vulkan.deqp.level.xml \
-	frameworks/native/data/etc/android.software.opengles.deqp.level-2025-03-01.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.opengles.deqp.level.xml
+	frameworks/native/data/etc/android.software.vulkan.deqp.level-2026-03-01.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.vulkan.deqp.level.xml \
+	frameworks/native/data/etc/android.software.opengles.deqp.level-2026-03-01.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.opengles.deqp.level.xml
 
 # Enforce the Product interface
 PRODUCT_PRODUCT_VNDK_VERSION := current
@@ -121,12 +99,6 @@ PRODUCT_COPY_FILES += \
 # Add sensor HAL AIDL product packages
 PRODUCT_PACKAGES += android.hardware.sensors-service.multihal
 
-# USB HAL
-PRODUCT_PACKAGES += \
-	android.hardware.usb-service.gs101
-PRODUCT_PACKAGES += \
-	android.hardware.usb.gadget-service.gs101
-
 # MIDI feature
 PRODUCT_COPY_FILES += \
 	frameworks/native/data/etc/android.software.midi.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.software.midi.xml
@@ -135,10 +107,6 @@ PRODUCT_COPY_FILES += \
 
 # IRQ rebalancing.
 include hardware/google/pixel/rebalance_interrupts/rebalance_interrupts.mk
-
-# PowerStats HAL
-PRODUCT_PACKAGES += \
-	android.hardware.power.stats-service.pixel
 
 # Camera
 PRODUCT_SOONG_NAMESPACES += \
@@ -228,10 +196,6 @@ PRODUCT_COPY_FILES += \
 	device/google/gs101/default-permissions.xml:$(TARGET_COPY_OUT_PRODUCT)/etc/default-permissions/default-permissions.xml \
 	device/google/gs101/component-overrides.xml:$(TARGET_COPY_OUT_VENDOR)/etc/sysconfig/component-overrides.xml
 
-PRODUCT_PACKAGES += \
-	android.hardware.health-service.gs101 \
-	android.hardware.health-service.gs101_recovery \
-
 # Audio HAL configurations
 PRODUCT_COPY_FILES += \
     frameworks/av/services/audiopolicy/config/a2dp_audio_policy_configuration_7_0.xml:$(TARGET_COPY_OUT_VENDOR)/etc/a2dp_audio_policy_configuration_7_0.xml \
@@ -319,6 +283,11 @@ PRODUCT_COPY_FILES += \
 PRODUCT_COPY_FILES += \
     frameworks/native/data/etc/android.hardware.fingerprint.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.fingerprint.xml
 
+# GMS
+ifeq ($(WITH_GMS),true)
+GMS_MAKEFILE=gms_minimal.mk
+endif
+
 # GNSS
 PRODUCT_PACKAGES += \
     android.hardware.sensors-V2-ndk.vendor:64
@@ -372,7 +341,6 @@ PRODUCT_PACKAGES += \
     SystemUIGoogleOverlayVendorGs101 \
     TeleServiceOverlayProductGs101 \
     TeleServiceOverlayVendorGs101 \
-    TelecomOverlayProductGs101 \
     TelephonyProviderOverlayProductGs101
 
 PRODUCT_PACKAGES += \
